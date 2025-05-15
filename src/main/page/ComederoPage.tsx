@@ -1,82 +1,78 @@
-// src/pages/ComederoPage.tsx
 import React, { useEffect, useState } from "react";
 import { LogoutButton } from "../components/LogoutButton";
-import { io, Socket } from "socket.io-client";
+
+type Hora = {
+  id: string;
+  hora: number;
+  minuto: number;
+};
 
 const ComederoPage = () => {
-  const [horas, setHoras] = useState<string[]>([]);
+  const [horas, setHoras] = useState<Hora[]>([]);
   const [horaInput, setHoraInput] = useState("00:00");
-  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const newSocket: Socket = io(
-      "https://arduino-sockets-production.up.railway.app",
-      {
-        path: "/io",
-      }
-    );
-
-    newSocket.on("connect", () => {
-      console.log("✅ Conectado al servidor!");
-      newSocket.emit("mensaje", "Hola desde cliente");
-    });
-
-    newSocket.on("mensaje", (data) => {
-      console.log("📩 Mensaje recibido:", data);
-    });
-
-    newSocket.on("disconnect", () => {
-      console.log("❌ Desconectado del servidor");
-    });
-
-    newSocket.on("connect_error", (err) => {
-      console.error("❌ Error de conexión:", err);
-    });
-
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.disconnect(); // Esto sí es correcto como 'Destructor'
-    };
+    fetch("https://arduino-sockets-production.up.railway.app/api/horas")
+      .then((res) => res.json())
+      .then((data: Hora[]) => {
+        if (Array.isArray(data)) {
+          setHoras(data);
+          if (data.length > 0) {
+            const primera = data[0];
+            setHoraInput(
+              `${String(primera.hora).padStart(2, "0")}:${String(
+                primera.minuto
+              ).padStart(2, "0")}`
+            );
+          }
+        }
+      })
+      .catch((err) => console.error("Error al obtener la hora:", err));
   }, []);
 
-  useEffect(() => {
-    // Aquí puedes manejar la lógica para recibir horas desde el servidor
-    if (socket) {
-      socket.on("hora", (hora: string) => {
-        console.log("📩 Hora recibida:", hora);
-        setHoras((prevHoras) => [...prevHoras, hora]);
-      });
-    }
-  }, [socket]);
+  const guardarHora = (nuevaHora: Hora) => {
+    fetch("https://arduino-sockets-production.up.railway.app/api/programar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nuevaHora),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error("Error al guardar la hora");
+        return res.json();
+      })
+      .then(() => {
+        console.log("Hora guardada correctamente");
+      })
+      .catch((err) => console.error("Error al guardar la hora:", err));
+  };
 
   const agregarHora = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!horaInput || horas.includes(horaInput)) return;
+    if (!horaInput) return;
 
-    const nuevaLista = [...horas, horaInput];
-    setHoras(nuevaLista);
+    const [h, m] = horaInput.split(":");
+    const nuevaHora: Hora = {
+      id: crypto.randomUUID(),
+      hora: parseInt(h),
+      minuto: parseInt(m),
+    };
 
-    // Enviar la nueva hora al servidor si el socket está conectado
-    if (socket) {
-      socket.emit("nueva-hora", horaInput);
-      console.log("📤 Hora enviada al servidor:", horaInput);
-    }
-
-    setHoraInput("00:00");
+    setHoras((prev) => [...prev, nuevaHora]);
+    guardarHora(nuevaHora);
   };
 
-  const eliminarHora = (hora: string) => {
-    setHoras(horas.filter((h) => h !== hora));
+  const eliminarHora = (id: string) => {
+    // Aquí podrías agregar llamada DELETE si la API lo permite
+    setHoras((prev) => prev.filter((hora) => hora.id !== id));
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray">
+    <div className="flex items-center justify-center min-h-screen bg-gray-900">
       <div className="absolute top-5 right-5">
         <LogoutButton />
       </div>
-      <div className="relative bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full text-white">
-        {/* Gato */}
+      <div className="relative bg-gray-800 p-6 rounded-lg shadow-lg max-w-xl w-full text-white">
+
         <div className="absolute -top-32 right-0 flex justify-center items-center">
           <div className="relative h-[200px] w-[350px]">
             <div className="absolute bottom-[52px] left-[70px] h-[10px] w-[240px] bg-black/20 rounded-[10px] animate-[shadow_2s_infinite]"></div>
@@ -92,57 +88,48 @@ const ComederoPage = () => {
           </div>
         </div>
 
-        {/* Título */}
-        <h2 className="text-2xl font-semibold mb-4 text-center">
-          ¡Comedero de Mascota!
+        <h2 className="text-2xl font-semibold mb-6 text-center">
+          ¡Programa tu comedero!
         </h2>
 
-        {/* Formulario */}
-        <form onSubmit={agregarHora} className="flex flex-row w-full gap-2">
+        <form onSubmit={agregarHora} className="flex gap-3 mb-6">
           <input
             type="time"
             value={horaInput}
             onChange={(e) => setHoraInput(e.target.value)}
             required
-            className="bg-gray-50 text-sm text-gray-900 rounded-lg p-2.5 w-full dark:bg-gray-700 dark:text-white"
+            className="bg-gray-50 text-gray-900 rounded-lg p-2.5 flex-grow dark:bg-gray-700 dark:text-white"
           />
           <button
             type="submit"
-            disabled={!horaInput}
-            className="disabled:text-gray-400 bg-gray-900 text-[#f19b1a] hover:text-white px-4 py-2 rounded hover:bg-[#f19b1a]/90"
+            className="bg-yellow-500 text-gray-900 font-semibold px-6 py-2 rounded-lg hover:bg-yellow-400 transition-colors shadow-md hover:shadow-lg"
           >
-            ➤
+            Guardar
           </button>
         </form>
 
-        {/* Lista de horas */}
-        <div className="mt-5 flex gap-2 flex-wrap">
-          {horas.map((hora) => (
-            <span
-              key={hora}
-              className="inline-flex items-center px-2 py-1 text-sm font-medium text-yellow-800 bg-yellow-100 rounded-sm dark:bg-yellow-900 dark:text-yellow-300"
+        <div className="flex space-x-4 overflow-x-auto py-2">
+          {horas.length === 0 && (
+            <p className="text-gray-400">No hay horas programadas aún.</p>
+          )}
+
+          {horas.map(({ id, hora, minuto }) => (
+            <div
+              key={id}
+              className="flex items-center bg-yellow-100 text-yellow-800 px-2 py-1 rounded-lg shadow-md min-w-max"
             >
-              {hora}
+              <span className="text-lg font-mono mr-1">
+                {String(hora).padStart(2, "0")}:
+                {String(minuto).padStart(2, "0")}
+              </span>
               <button
-                onClick={() => eliminarHora(hora)}
-                className="inline-flex items-center p-1 ms-2 text-sm text-yellow-400 bg-transparent rounded-xs hover:bg-yellow-200 hover:text-yellow-900 dark:hover:bg-yellow-800 dark:hover:text-yellow-300"
-                aria-label="Remove"
+                onClick={() => eliminarHora(id)}
+                className="text-yellow-700 hover:text-yellow-900 font-bold px-2 py-1 rounded hover:bg-yellow-300 transition-colors"
+                aria-label={`Eliminar hora ${hora}:${minuto}`}
               >
-                <svg
-                  className="w-2 h-2"
-                  viewBox="0 0 14 14"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <path
-                    d="M1 1L13 13M13 1L1 13"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                ✕
               </button>
-            </span>
+            </div>
           ))}
         </div>
       </div>
