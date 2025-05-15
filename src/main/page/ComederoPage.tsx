@@ -1,36 +1,68 @@
 // src/pages/ComederoPage.tsx
 import React, { useEffect, useState } from "react";
 import { LogoutButton } from "../components/LogoutButton";
+import { io, Socket } from "socket.io-client";
 
 const ComederoPage = () => {
   const [horas, setHoras] = useState<string[]>([]);
   const [horaInput, setHoraInput] = useState("00:00");
-  const [socket, setSocket] = useState<WebSocket | null>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
 
   useEffect(() => {
-    const newSocket = new WebSocket("ws://localhost:3000/ws");
-    newSocket.onopen = () => {
-      console.log("✅ Conectado al WebSocket Server!");
-      newSocket.send("Hola a ws desde el cliente!");
-    };
-    newSocket.onmessage = (event) => console.log("📩 Mensaje:", event.data);
-    newSocket.onerror = (error) => console.log("❌ Error:", error);
-    newSocket.onclose = () => console.log("❌ Conexión cerrada!");
+    const newSocket: Socket = io(
+      "https://arduino-sockets-production.up.railway.app",
+      {
+        path: "/io",
+      }
+    );
+
+    newSocket.on("connect", () => {
+      console.log("✅ Conectado al servidor!");
+      newSocket.emit("mensaje", "Hola desde cliente");
+    });
+
+    newSocket.on("mensaje", (data) => {
+      console.log("📩 Mensaje recibido:", data);
+    });
+
+    newSocket.on("disconnect", () => {
+      console.log("❌ Desconectado del servidor");
+    });
+
+    newSocket.on("connect_error", (err) => {
+      console.error("❌ Error de conexión:", err);
+    });
+
     setSocket(newSocket);
 
-    return () => newSocket.close();
+    return () => {
+      newSocket.disconnect(); // Esto sí es correcto como 'Destructor'
+    };
   }, []);
 
   useEffect(() => {
-    setTimeout(() => {
-      setHoras(["08:00", "12:00", "18:00"]);
-    }, 1000);
-  }, []);
+    // Aquí puedes manejar la lógica para recibir horas desde el servidor
+    if (socket) {
+      socket.on("hora", (hora: string) => {
+        console.log("📩 Hora recibida:", hora);
+        setHoras((prevHoras) => [...prevHoras, hora]);
+      });
+    }
+  }, [socket]);
 
   const agregarHora = (e: React.FormEvent) => {
     e.preventDefault();
     if (!horaInput || horas.includes(horaInput)) return;
-    setHoras([...horas, horaInput]);
+
+    const nuevaLista = [...horas, horaInput];
+    setHoras(nuevaLista);
+
+    // Enviar la nueva hora al servidor si el socket está conectado
+    if (socket) {
+      socket.emit("nueva-hora", horaInput);
+      console.log("📤 Hora enviada al servidor:", horaInput);
+    }
+
     setHoraInput("00:00");
   };
 
@@ -42,7 +74,7 @@ const ComederoPage = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray">
       <div className="absolute top-5 right-5">
         <LogoutButton />
-        </div>
+      </div>
       <div className="relative bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full text-white">
         {/* Gato */}
         <div className="absolute -top-32 right-0 flex justify-center items-center">
@@ -62,7 +94,7 @@ const ComederoPage = () => {
 
         {/* Título */}
         <h2 className="text-2xl font-semibold mb-4 text-center">
-          ¡Programa tu comedero!
+          ¡Comedero de Mascota!
         </h2>
 
         {/* Formulario */}

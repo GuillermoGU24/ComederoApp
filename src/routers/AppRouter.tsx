@@ -19,7 +19,7 @@ export const AppRouter = () => {
   return (
     <Routes>
       {status === "authenticated" ? (
-        <Route path="/*" element={<ComederoPage />} />
+        <Route path="/comedero" element={<ComederoPage />} />
       ) : (
         <>
           <Route path="/auth/login" element={<LoginPage />} />
