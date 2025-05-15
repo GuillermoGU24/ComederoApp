@@ -19,7 +19,7 @@ export const AppRouter = () => {
   return (
     <Routes>
       {status === "authenticated" ? (
-        <Route path="/comedero" element={<ComederoPage />} />
+        <Route path="/*" element={<ComederoPage />} />
       ) : (
         <>
           <Route path="/auth/login" element={<LoginPage />} />
@@ -27,6 +27,7 @@ export const AppRouter = () => {
           <Route path="/auth/registro" element={<RegisterForm />} />
         </>
       )}
+
     </Routes>
   );
 };
